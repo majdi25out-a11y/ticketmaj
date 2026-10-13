@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="tfGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3730a3" />
+      <stop offset="100%" stop-color="#1f108e" />
+    </linearGradient>
+    <filter id="tfShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="2" stdDeviation="1.5" flood-color="#000" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="url(#tfGrad)" />
+  <rect x="3" y="3" width="58" height="58" rx="13" stroke="rgba(255,255,255,0.25)" stroke-width="1.5" />
+  <!-- Ticket glyph with notch cutouts -->
+  <path d="M16 22C16 19.7909 17.7909 18 20 18H44C46.2091 18 48 19.7909 48 22V27C45.7909 27 44 28.7909 44 31C44 33.2091 45.7909 35 48 35V42C48 44.2091 46.2091 46 44 46H20C17.7909 46 16 44.2091 16 42V35C18.2091 35 20 33.2091 20 31C20 28.7909 18.2091 27 16 27V22Z" fill="white" filter="url(#tfShadow)"/>
+  <!-- Perforated dotted separator line -->
+  <path d="M32 23V41" stroke="#1f108e" stroke-width="2.5" stroke-dasharray="2 3" stroke-linecap="round"/>
+  <!-- Status badge dot -->
+  <circle cx="41.5" cy="23.5" r="2.5" fill="#38bdf8"/>
+</svg>

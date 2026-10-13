@@ -1,0 +1,8 @@
+{
+  "name": "Remix TicketFlow22",
+  "description": "Système de gestion et suivi de tickets opérationnels avec dashboard, vue détaillés, proposition et espaces développeurs.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

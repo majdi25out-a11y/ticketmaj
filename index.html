@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="fr" class="light" style="font-size: 90%;">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TicketFlow - Operational Control</title>
+    <meta name="description" content="Plateforme opérationnelle de gestion et suivi des tickets et équipes de développement." />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192x192.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#1f108e" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="TicketFlow" />
+    <meta name="application-name" content="TicketFlow" />
+    
+    <!-- Prevent harmless WebSocket closure errors in iframe development preview -->
+    <script>
+      (function() {
+        if (typeof window !== 'undefined') {
+          // 1. Intercept unhandled WebSocket errors
+          window.addEventListener('error', function(e) {
+            if (e && ((e.message && e.message.indexOf('WebSocket') !== -1) || (e.target && e.target instanceof WebSocket))) {
+              e.stopImmediatePropagation();
+              e.preventDefault();
+              return true;
+            }
+          }, true);
+          window.addEventListener('unhandledrejection', function(e) {
+            var reasonStr = (e && e.reason) ? (e.reason.message || String(e.reason)) : '';
+            if (reasonStr && reasonStr.indexOf('WebSocket') !== -1) {
+              e.stopImmediatePropagation();
+              e.preventDefault();
+              return true;
+            }
+          }, true);
+
+          // 2. Mock Vite's internal HMR WebSocket connection in iframe environments where HMR is disabled
+          var OriginalWS = window.WebSocket;
+          if (OriginalWS) {
+            function MockViteWS(url, protocols) {
+              var isViteHmr = protocols === 'vite-hmr' || protocols === 'vite-ping' || 
+                (typeof url === 'string' && (url.indexOf('token=') !== -1 || url.indexOf('vite') !== -1 || url.indexOf('5173') !== -1));
+              
+              if (isViteHmr) {
+                var listeners = { open: [], message: [], close: [], error: [] };
+                var fakeSocket = {
+                  readyState: 1, // WebSocket.OPEN
+                  OPEN: 1,
+                  CONNECTING: 0,
+                  CLOSING: 2,
+                  CLOSED: 3,
+                  url: String(url),
+                  protocol: protocols || '',
+                  extensions: '',
+                  binaryType: 'blob',
+                  bufferedAmount: 0,
+                  onopen: null,
+                  onmessage: null,
+                  onclose: null,
+                  onerror: null,
+                  addEventListener: function(type, cb) {
+                    if (!listeners[type]) listeners[type] = [];
+                    listeners[type].push(cb);
+                    if (type === 'open') {
+                      setTimeout(function() {
+                        try {
+                          cb({ type: 'open', target: fakeSocket });
+                          if (fakeSocket.onopen) fakeSocket.onopen({ type: 'open', target: fakeSocket });
+                        } catch(e) {}
+                      }, 0);
+                    }
+                  },
+                  removeEventListener: function(type, cb) {
+                    if (listeners[type]) {
+                      listeners[type] = listeners[type].filter(function(fn) { return fn !== cb; });
+                    }
+                  },
+                  dispatchEvent: function() { return true; },
+                  send: function() {},
+                  close: function() {
+                    fakeSocket.readyState = 3;
+                    setTimeout(function() {
+                      (listeners.close || []).forEach(function(fn) {
+                        try { fn({ type: 'close', target: fakeSocket, code: 1000, reason: 'Closed', wasClean: true }); } catch(e) {}
+                      });
+                      if (fakeSocket.onclose) fakeSocket.onclose({ type: 'close', target: fakeSocket, code: 1000, reason: 'Closed', wasClean: true });
+                    }, 0);
+                  }
+                };
+                return fakeSocket;
+              }
+              return new OriginalWS(url, protocols);
+            }
+            MockViteWS.prototype = OriginalWS.prototype;
+            MockViteWS.CONNECTING = 0;
+            MockViteWS.OPEN = 1;
+            MockViteWS.CLOSING = 2;
+            MockViteWS.CLOSED = 3;
+            window.WebSocket = MockViteWS;
+          }
+        }
+      })();
+    </script>
+    <script>
+      (function() {
+        try {
+          var savedFont = localStorage.getItem('tf_font_size_pct');
+          if (savedFont) {
+            var p = parseInt(savedFont, 10);
+            if (!isNaN(p) && p >= 70 && p <= 130) {
+              document.documentElement.style.fontSize = p + '%';
+            }
+          } else {
+            document.documentElement.style.fontSize = '90%';
+          }
+          var savedTheme = localStorage.getItem('tf_color_theme');
+          var themes = {
+            indigo: { primary: '#1f108e', hover: '#170b6e', light: '#eff4ff', border: 'rgba(31, 16, 142, 0.3)' },
+            emerald: { primary: '#059669', hover: '#047857', light: '#ecfdf5', border: 'rgba(5, 150, 105, 0.3)' },
+            violet: { primary: '#7c3aed', hover: '#6d28d9', light: '#f5f3ff', border: 'rgba(124, 58, 237, 0.3)' },
+            ocean: { primary: '#0284c7', hover: '#0369a1', light: '#f0f9ff', border: 'rgba(2, 132, 199, 0.3)' },
+            crimson: { primary: '#e11d48', hover: '#be123c', light: '#fff1f2', border: 'rgba(225, 29, 72, 0.3)' },
+            amber: { primary: '#ea580c', hover: '#c2410c', light: '#fff7ed', border: 'rgba(234, 88, 12, 0.3)' },
+            slate: { primary: '#0f172a', hover: '#020617', light: '#f8fafc', border: 'rgba(15, 23, 42, 0.3)' }
+          };
+          var t = themes[savedTheme] || themes.indigo;
+          var s = document.documentElement.style;
+          s.setProperty('--primary-color', t.primary);
+          s.setProperty('--primary-hover', t.hover);
+          s.setProperty('--primary-light', t.light);
+          s.setProperty('--primary-border', t.border);
+        } catch(e) {}
+      })();
+    </script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=block" rel="stylesheet">
+  </head>
+  <body class="bg-[#f8f9ff] text-[#0b1c30] antialiased selection:bg-[#3730a3] selection:text-white">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+
