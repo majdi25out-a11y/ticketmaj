@@ -1872,11 +1872,13 @@ export default function App() {
       />
 
       {/* Mobile APK & PWA Generator Modal */}
-      <MobileApkModal
-        isOpen={isMobileApkModalOpen}
-        onClose={() => setIsMobileApkModalOpen(false)}
-        branding={branding}
-      />
+      {isMobileApkModalOpen && (
+        <MobileApkModal
+          isOpen={isMobileApkModalOpen}
+          onClose={() => setIsMobileApkModalOpen(false)}
+          branding={branding}
+        />
+      )}
 
       {/* Offline Mode Indicator */}
       <OfflineIndicator />

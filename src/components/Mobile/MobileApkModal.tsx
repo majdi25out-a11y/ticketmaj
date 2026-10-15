@@ -17,13 +17,12 @@ export const MobileApkModal: React.FC<MobileApkModalProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'direct' | 'cloud' | 'native' | 'ios'>('direct');
   const [isDownloadingZip, setIsDownloadingZip] = useState(false);
+  const [statusNotification, setStatusNotification] = useState<{ message: string; type: 'success' | 'info' | 'error' } | null>(null);
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
 
   const { isInstallable, isInstalled, isIOS, isAndroid, install } = usePWAInstall();
 
   if (!isOpen) return null;
-
-  const [statusNotification, setStatusNotification] = useState<{ message: string; type: 'success' | 'info' | 'error' } | null>(null);
 
   const appName = branding?.appName || 'TicketFlow';
   const appId = 'com.ticketflow.app';
