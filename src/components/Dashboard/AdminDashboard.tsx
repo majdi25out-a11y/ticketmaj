@@ -1,6 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { Ticket, Developer, Project } from '../../types';
 import { EditTicketModal } from '../Tickets/EditTicketModal';
+import { useDevicePlatform } from '../../hooks/useDevicePlatform';
+import { triggerHapticVibration } from '../../utils/deviceNotifications';
 
 interface AdminDashboardProps {
   tickets: Ticket[];
@@ -44,6 +46,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [developerFilter, setDeveloperFilter] = useState<string>('all');
   const [projectFilter, setProjectFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const { isAndroid } = useDevicePlatform();
 
   const isAdmin =
     currentUser?.role?.toLowerCase().includes('admin') ||
@@ -663,8 +666,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
           {/* Table / Mobile Cards Container */}
           <div className="bento-card rounded-2xl overflow-hidden shadow-xs">
-            {/* Desktop Table View */}
-            <div className="hidden md:block overflow-x-auto w-full">
+            {/* Desktop Table View (Hidden on Android & Mobile) */}
+            <div className={isAndroid ? 'hidden' : 'hidden md:block overflow-x-auto w-full'}>
               <table className="w-full text-left border-collapse table-auto">
                 <thead>
                   <tr className="bg-[#eff4ff] border-b border-[#c8c4d5]/50">
@@ -807,7 +810,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 type="button"
                                 onClick={() => onInspectTicket(t.id, 'inspect')}
                                 className="px-2.5 py-1 text-xs font-bold text-[#1f108e] bg-[#eff4ff] hover:bg-[#1f108e] hover:text-white border border-[#1f108e]/30 rounded-lg transition-colors cursor-pointer flex items-center gap-1"
-                                title="Prévisualiser ce ticket dans le volet d'inspection sans quitter la vue d'ensemble"
+                                title="Prévisualiser ce ticket"
                               >
                                 <span className="material-symbols-outlined text-xs">dock_to_right</span>
                                 <span>Inspecter</span>
@@ -818,7 +821,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 type="button"
                                 onClick={() => setEditingTicket(t)}
                                 className="px-2.5 py-1 text-xs font-bold text-[#1f108e] bg-[#eff4ff] hover:bg-[#1f108e] hover:text-white border border-[#1f108e]/30 rounded-lg transition-colors cursor-pointer flex items-center gap-1"
-                                title="Gérer ce ticket (Assignation projet, développeur, statut, SLA...)"
+                                title="Gérer ce ticket"
                               >
                                 <span className="material-symbols-outlined text-xs">admin_panel_settings</span>
                                 <span>Gérer</span>
@@ -839,122 +842,206 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </table>
             </div>
 
-            {/* Mobile Responsive Card List (Replaces wide table on phone screens) */}
-            <div className="md:hidden divide-y divide-[#c8c4d5]/30">
+            {/* Android & Mobile Ultra-Sleek Card Interface */}
+            <div className={isAndroid ? 'p-3 sm:p-4 space-y-3 bg-slate-50/70' : 'md:hidden p-2.5 sm:p-4 space-y-3 bg-slate-50/70'}>
               {filteredTickets.length === 0 ? (
-                <div className="p-6 text-center text-xs text-[#464553]">
+                <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center text-xs text-[#464553] shadow-xs">
+                  <span className="material-symbols-outlined text-3xl text-slate-400 block mb-1">filter_alt_off</span>
                   Aucun ticket correspondant aux filtres.
                 </div>
               ) : (
-                filteredTickets.map((t) => (
-                  <div
-                    key={t.id}
-                    onClick={() => {
-                      if (isInspectionOpen && onInspectTicket) {
-                        onInspectTicket(t.id, 'inspect');
-                      } else {
-                        onSelectTicket(t.id);
-                      }
-                    }}
-                    className="p-3.5 hover:bg-[#eff4ff]/40 transition-colors space-y-2 cursor-pointer touch-manipulation"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="font-geist text-xs font-bold text-[#1f108e]">
-                          #{t.id}
-                        </span>
-                        {t.projectName && (
-                          <span
-                            className="px-1.5 py-0.5 rounded text-[10px] font-bold text-white shadow-2xs flex items-center gap-0.5"
-                            style={{ backgroundColor: t.projectColor || '#1f108e' }}
-                          >
-                            <span className="material-symbols-outlined text-[10px]">folder</span>
-                            <span>{t.projectCode ? `[${t.projectCode}] ` : ''}{t.projectName}</span>
+                filteredTickets.map((t) => {
+                  const priorityBorderColor =
+                    t.priority === 'urgent'
+                      ? 'border-l-rose-500'
+                      : t.priority === 'high'
+                      ? 'border-l-amber-500'
+                      : t.priority === 'medium'
+                      ? 'border-l-indigo-600'
+                      : 'border-l-slate-300';
+
+                  return (
+                    <div
+                      key={t.id}
+                      onClick={() => {
+                        triggerHapticVibration(false);
+                        if (isInspectionOpen && onInspectTicket) {
+                          onInspectTicket(t.id, 'inspect');
+                        } else {
+                          onSelectTicket(t.id);
+                        }
+                      }}
+                      className={`bg-white rounded-2xl border border-slate-200/90 border-l-4 ${priorityBorderColor} p-4 shadow-xs hover:shadow-md transition-all active:scale-[0.99] touch-manipulation space-y-3 cursor-pointer`}
+                    >
+                      {/* Top Row: #ID + Project + Status + Priority */}
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                          <span className="font-geist text-xs font-black text-[#1f108e] bg-[#eff4ff] px-2 py-0.5 rounded-lg">
+                            #{t.id}
                           </span>
+                          {t.projectName && (
+                            <span
+                              className="px-2 py-0.5 rounded-lg text-[10px] font-bold text-white shadow-2xs inline-flex items-center gap-1 truncate max-w-[140px]"
+                              style={{ backgroundColor: t.projectColor || '#1f108e' }}
+                            >
+                              <span className="material-symbols-outlined text-[11px]">folder</span>
+                              <span className="truncate">{t.projectCode ? `[${t.projectCode}] ` : ''}{t.projectName}</span>
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          {getStatusPill(t.status, t.statusLabel)}
+                          {getPriorityBadge(t.priority)}
+                        </div>
+                      </div>
+
+                      {/* Middle: Title & Description Snippet */}
+                      <div>
+                        <h4 className="text-sm font-bold text-[#0b1c30] line-clamp-2 leading-snug">
+                          {t.title}
+                        </h4>
+                        {t.description && (
+                          <p className="text-xs text-slate-500 line-clamp-2 mt-1 leading-relaxed">
+                            {t.description}
+                          </p>
                         )}
                       </div>
-                      <div className="flex items-center gap-1.5">
-                        {getStatusPill(t.status, t.statusLabel)}
-                        {getPriorityBadge(t.priority)}
-                      </div>
-                    </div>
 
-                    <h4 className="text-xs font-bold text-[#0b1c30] line-clamp-2">
-                      {t.title}
-                    </h4>
-
-                    <div className="flex items-center justify-between text-[11px] text-[#777584]">
-                      <span>Par <strong className="text-[#0b1c30]">{t.requestedBy}</strong></span>
-                      {t.assignedTo ? (
-                        <span className="flex items-center gap-1 text-[#1f108e] font-semibold">
-                          <span className="material-symbols-outlined text-xs">engineering</span>
-                          {t.assignedTo.name}
+                      {/* Metadata Row: Requester & Date */}
+                      <div className="flex items-center justify-between text-xs text-slate-600 pt-1 border-t border-slate-100">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <div className="w-5 h-5 rounded-full bg-indigo-100 flex items-center justify-center text-[10px] font-bold text-[#1f108e] overflow-hidden flex-shrink-0">
+                            {t.requestedByAvatar ? (
+                              <img src={t.requestedByAvatar} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              t.requestedBy?.substring(0, 2)
+                            )}
+                          </div>
+                          <span className="truncate text-[11px]">
+                            Par <strong className="text-slate-900">{t.requestedBy}</strong>
+                          </span>
+                        </div>
+                        <span className="text-[10px] text-slate-400 font-geist flex-shrink-0">
+                          {t.createdDate}
                         </span>
-                      ) : (
-                        <span className="text-slate-400 italic">Non assigné</span>
-                      )}
-                    </div>
-
-                    {isAdmin && projects.length > 0 && (
-                      <div onClick={(e) => e.stopPropagation()} className="pt-1 flex items-center justify-between gap-2">
-                        <span className="text-[10px] font-bold text-[#777584] uppercase">Projet :</span>
-                        <select
-                          value={t.projectId || ''}
-                          onChange={(e) => {
-                            if (onAssignProject) {
-                              onAssignProject(t.id, e.target.value);
-                            }
-                          }}
-                          className="text-xs font-semibold rounded-lg px-2 py-1 outline-none border transition-colors shadow-2xs max-w-[180px] truncate"
-                          style={{
-                            backgroundColor: t.projectColor ? `${t.projectColor}15` : '#f8f9ff',
-                            color: t.projectColor || '#1f108e',
-                            borderColor: t.projectColor ? `${t.projectColor}50` : '#c8c4d5',
-                          }}
-                        >
-                          <option value="" className="text-[#0b1c30] bg-white">Sans projet</option>
-                          {projects.map((p) => (
-                            <option key={p.id} value={p.id} className="text-[#0b1c30] bg-white">
-                              {p.code ? `[${p.code}] ` : ''}{p.name}
-                            </option>
-                          ))}
-                        </select>
                       </div>
-                    )}
 
-                    <div className="flex items-center justify-between text-[11px] text-[#777584] pt-1">
-                      <span className="font-geist">{t.createdDate}</span>
-                      <div className="flex items-center gap-1.5">
+                      {/* Assignment Row */}
+                      <div
+                        onClick={(e) => e.stopPropagation()}
+                        className="flex items-center justify-between gap-2 p-2 rounded-xl bg-slate-50 border border-slate-200/60 text-xs"
+                      >
+                        <span className="text-[11px] font-semibold text-slate-600 flex items-center gap-1">
+                          <span className="material-symbols-outlined text-sm text-[#1f108e]">engineering</span>
+                          <span>Assigné :</span>
+                        </span>
+
+                        {isAdmin && developers.length > 0 ? (
+                          <select
+                            value={t.assignedTo?.id || ''}
+                            onChange={(e) => {
+                              if (onValidateTicket) {
+                                onValidateTicket(t.id, e.target.value);
+                              }
+                            }}
+                            className="text-xs font-bold bg-white border border-slate-300 rounded-lg px-2 py-1 outline-none cursor-pointer max-w-[180px] truncate"
+                          >
+                            <option value="">Non assigné</option>
+                            {developers.map((d) => (
+                              <option key={d.id} value={d.id}>
+                                {d.name} {d.role ? `(${d.role})` : ''}
+                              </option>
+                            ))}
+                          </select>
+                        ) : t.assignedTo ? (
+                          <span className="font-bold text-[#1f108e] text-xs truncate max-w-[180px]">
+                            {t.assignedTo.name}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 italic text-xs">Non assigné</span>
+                        )}
+                      </div>
+
+                      {/* Project selector for Admin */}
+                      {isAdmin && projects.length > 0 && (
+                        <div
+                          onClick={(e) => e.stopPropagation()}
+                          className="flex items-center justify-between gap-2 text-xs"
+                        >
+                          <span className="text-[11px] font-semibold text-slate-500">Projet :</span>
+                          <select
+                            value={t.projectId || ''}
+                            onChange={(e) => {
+                              if (onAssignProject) {
+                                onAssignProject(t.id, e.target.value);
+                              }
+                            }}
+                            className="text-xs font-semibold rounded-lg px-2.5 py-1 outline-none border transition-colors shadow-2xs max-w-[200px] truncate"
+                            style={{
+                              backgroundColor: t.projectColor ? `${t.projectColor}15` : '#f8f9ff',
+                              color: t.projectColor || '#1f108e',
+                              borderColor: t.projectColor ? `${t.projectColor}50` : '#c8c4d5',
+                            }}
+                          >
+                            <option value="" className="text-[#0b1c30] bg-white">Sans projet</option>
+                            {projects.map((p) => (
+                              <option key={p.id} value={p.id} className="text-[#0b1c30] bg-white">
+                                {p.code ? `[${p.code}] ` : ''}{p.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+
+                      {/* Bottom Touch Actions Bar */}
+                      <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-100">
                         {onInspectTicket && (
                           <button
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
+                              triggerHapticVibration(false);
                               onInspectTicket(t.id, 'inspect');
                             }}
-                            className="px-2 py-0.5 bg-[#eff4ff] text-[#1f108e] border border-[#1f108e]/30 rounded-md font-bold text-[10px] flex items-center gap-0.5"
+                            className="flex-1 min-h-[38px] px-3 py-1.5 bg-[#eff4ff] hover:bg-[#1f108e] text-[#1f108e] hover:text-white border border-[#1f108e]/30 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all shadow-2xs"
                           >
-                            <span className="material-symbols-outlined text-[10px]">dock_to_right</span>
-                            Inspecter
+                            <span className="material-symbols-outlined text-base">dock_to_right</span>
+                            <span>Inspecter</span>
                           </button>
                         )}
+
                         {isAdmin && (
                           <button
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
+                              triggerHapticVibration(false);
                               setEditingTicket(t);
                             }}
-                            className="px-2 py-0.5 bg-amber-50 text-amber-900 border border-amber-300 rounded-md font-bold text-[10px]"
+                            className="min-h-[38px] px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl font-bold text-xs flex items-center justify-center gap-1 active:scale-95 transition-all"
                             title="Modifier ce ticket"
                           >
-                            Modifier
+                            <span className="material-symbols-outlined text-base">edit</span>
+                            <span>Modifier</span>
                           </button>
                         )}
+
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            triggerHapticVibration(true);
+                            onSelectTicket(t.id);
+                          }}
+                          className="min-h-[38px] px-3 py-1.5 bg-slate-900 hover:bg-[#1f108e] text-white rounded-xl font-bold text-xs flex items-center justify-center gap-1 active:scale-95 transition-all shadow-xs"
+                        >
+                          <span>Ouvrir</span>
+                          <span className="material-symbols-outlined text-sm">arrow_forward</span>
+                        </button>
                       </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
 

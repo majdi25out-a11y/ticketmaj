@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { ViewMode, Ticket, Comment, Developer, AppNotification, AppBrandingConfig, Attachment, Project } from './types';
 import { INITIAL_TICKETS, INITIAL_DEVELOPERS } from './data/mockData';
 import { Navbar } from './components/Navigation/Navbar';
@@ -26,7 +26,9 @@ import { TicketInspectionDrawer } from './components/Tickets/TicketInspectionDra
 import { MobileApkModal } from './components/Mobile/MobileApkModal';
 import { PWAInstallBanner } from './components/Mobile/PWAInstallBanner';
 import { OfflineIndicator } from './components/Common/OfflineIndicator';
+import { NotificationPermissionPrompt } from './components/Common/NotificationPermissionPrompt';
 import { applyTheme, getInitialTheme, applyFontSize, getInitialFontSize, getInitialBranding, saveBrandingToLocal } from './utils/theme';
+import { initServiceWorkerAndNotifications, showDeviceNotification, setOnTicketOpenHandler } from './utils/deviceNotifications';
 
 export function getSessionTimeoutMs(timeoutSetting?: string): number | null {
   switch (timeoutSetting) {
@@ -129,6 +131,9 @@ export default function App() {
   const [isInspectionDrawerOpen, setIsInspectionDrawerOpen] = useState(false);
   const [inspectedTicketId, setInspectedTicketId] = useState<string | null>(null);
   const [compareTicketId, setCompareTicketId] = useState<string | null>(null);
+
+  const knownNotifIdsRef = useRef<Set<string>>(new Set());
+  const isInitialNotifsLoadedRef = useRef<boolean>(false);
 
   // Dynamically update browser tab title & favicon with App Logo & Name
   useEffect(() => {
@@ -235,6 +240,39 @@ export default function App() {
               uniqueNotifs.push(n);
             }
           }
+
+          // Trigger Android system notification when a new notification arrives via polling (foreground or background)
+          if (isInitialNotifsLoadedRef.current) {
+            const isAdminUser =
+              currentUser.role?.toLowerCase().includes('admin') ||
+              currentUser.role?.toLowerCase().includes('architect');
+
+            for (const n of uniqueNotifs) {
+              if (n.id && !knownNotifIdsRef.current.has(n.id) && !n.read) {
+                const isTargeted =
+                  (!n.targetUserEmail && !n.targetUserName) ||
+                  (currentUser.email && n.targetUserEmail?.toLowerCase() === currentUser.email.toLowerCase()) ||
+                  (currentUser.name && n.targetUserName?.toLowerCase() === currentUser.name.toLowerCase()) ||
+                  isAdminUser;
+
+                if (isTargeted) {
+                  showDeviceNotification({
+                    title: n.title,
+                    body: n.desc,
+                    ticketId: n.ticketId,
+                    urgent: n.urgent,
+                  });
+                }
+              }
+            }
+          }
+
+          // Mark known IDs
+          uniqueNotifs.forEach((n) => {
+            if (n.id) knownNotifIdsRef.current.add(n.id);
+          });
+          isInitialNotifsLoadedRef.current = true;
+
           setNotifications(uniqueNotifs);
         }
       }
@@ -254,6 +292,13 @@ export default function App() {
   useEffect(() => {
     applyTheme(getInitialTheme());
     applyFontSize(getInitialFontSize());
+
+    // Initialize Service Worker for Android PWA / WebAPK notifications
+    initServiceWorkerAndNotifications();
+    setOnTicketOpenHandler((tId) => {
+      setSelectedTicketId(tId);
+      setCurrentView('ticket_detail');
+    });
 
     loadBackendData();
 
@@ -407,6 +452,18 @@ export default function App() {
       );
       if (isDup) return prev;
       return [newNotif, ...prev];
+    });
+
+    if (newNotif.id) {
+      knownNotifIdsRef.current.add(newNotif.id);
+    }
+
+    // Trigger Android device notification (sound, vibration, status bar)
+    showDeviceNotification({
+      title: notifData.title,
+      body: notifData.desc,
+      ticketId: notifData.ticketId,
+      urgent: notifData.urgent,
     });
 
     try {
@@ -1823,6 +1880,9 @@ export default function App() {
 
       {/* Offline Mode Indicator */}
       <OfflineIndicator />
+
+      {/* Android / Device Push Notification Prompt */}
+      <NotificationPermissionPrompt currentUser={currentUser} />
 
       {/* Success/Information Toast Banner */}
       {toastMessage && (

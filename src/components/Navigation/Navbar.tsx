@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { DEFAULT_CARTOON_AVATAR } from '../../data/avatars';
 import { ViewMode, AppBrandingConfig } from '../../types';
 import { ThemePicker } from './ThemePicker';
+import { triggerHapticVibration, getNotificationPermissionStatus } from '../../utils/deviceNotifications';
+import { useDevicePlatform } from '../../hooks/useDevicePlatform';
 
 interface NavbarProps {
   currentView: ViewMode;
@@ -48,6 +50,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   unreadCount = 0,
   branding,
 }) => {
+  const { isAndroid } = useDevicePlatform();
   const [searchQuery, setSearchQuery] = useState('');
   const appName = branding?.appName || 'TicketFlow';
   const appLogoUrl = branding?.appLogoUrl;
@@ -56,9 +59,16 @@ export const Navbar: React.FC<NavbarProps> = ({
     currentUser?.role?.toLowerCase().includes('architect');
 
   const [showMobileSearch, setShowMobileSearch] = useState(false);
+  const notifPermission = typeof window !== 'undefined' ? getNotificationPermissionStatus() : 'default';
 
   return (
-    <header className="fixed top-0 right-0 left-0 lg:left-[260px] z-40 bg-white/95 backdrop-blur-md border-b border-[#c8c4d5]/40 h-16 flex justify-between items-center px-3.5 md:px-8 transition-all duration-300">
+    <header
+      className={`fixed top-0 right-0 left-0 lg:left-[260px] z-40 bg-white/95 backdrop-blur-md border-b border-[#c8c4d5]/40 flex justify-between items-center transition-all duration-300 ${
+        isAndroid
+          ? 'h-16 pt-[calc(env(safe-area-inset-top)+0.2rem)] px-3 sm:px-6 shadow-[0_2px_12px_rgba(31,16,142,0.06)]'
+          : 'h-16 px-3.5 md:px-8'
+      }`}
+    >
       {/* Left side: Hamburger for mobile + Brand */}
       <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
         <button
@@ -195,16 +205,21 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Notifications */}
         <button
-          onClick={onOpenNotifications}
-          className="p-2 text-[#464553] hover:bg-[#eff4ff] rounded-xl transition-colors relative cursor-pointer"
-          title="Notifications"
+          onClick={() => {
+            triggerHapticVibration(false);
+            onOpenNotifications();
+          }}
+          className="p-2 text-[#464553] hover:bg-[#eff4ff] active:scale-95 rounded-xl transition-all relative cursor-pointer touch-manipulation"
+          title="Notifications (Avant et Arrière-plan)"
         >
           <span className="material-symbols-outlined text-xl">notifications</span>
-          {unreadCount > 0 && (
+          {unreadCount > 0 ? (
             <span className="absolute 1 top-1 right-1 min-w-[16px] h-[16px] px-1 bg-[#ba1a1a] text-white text-[9px] font-black rounded-full flex items-center justify-center ring-2 ring-white">
               {unreadCount > 9 ? '9+' : unreadCount}
             </span>
-          )}
+          ) : isAndroid && notifPermission === 'granted' ? (
+            <span className="absolute bottom-1 right-1 w-2 h-2 bg-emerald-500 rounded-full ring-2 ring-white" title="Notifications Android Actives" />
+          ) : null}
         </button>
 
         {/* Help / Support button */}

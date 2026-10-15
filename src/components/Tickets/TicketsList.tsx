@@ -1,6 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { Ticket, Status, Priority, Platform, Developer, Project } from '../../types';
 import { EditTicketModal } from './EditTicketModal';
+import { useDevicePlatform } from '../../hooks/useDevicePlatform';
+import { triggerHapticVibration } from '../../utils/deviceNotifications';
 
 interface TicketsListProps {
   tickets: Ticket[];
@@ -43,6 +45,7 @@ export const TicketsList: React.FC<TicketsListProps> = ({
     currentUser?.role?.toLowerCase().includes('admin') ||
     currentUser?.role?.toLowerCase().includes('architect') ||
     currentUser?.email === 'admin@ticketflow.io';
+  const { isAndroid } = useDevicePlatform();
   const [editingTicket, setEditingTicket] = useState<Ticket | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -468,18 +471,31 @@ export const TicketsList: React.FC<TicketsListProps> = ({
         </div>
       ) : (
         <div className="space-y-3">
-          {filteredTickets.map((ticket) => (
-            <div
-              key={ticket.id}
-              onClick={() => {
-                if (isInspectionOpen && onInspectTicket) {
-                  onInspectTicket(ticket.id, 'inspect');
-                } else {
-                  onSelectTicket(ticket.id);
-                }
-              }}
-              className="bg-white border border-[#c8c4d5]/60 rounded-2xl p-4 hover:border-[#1f108e] transition-all duration-150 shadow-2xs hover:shadow-xs cursor-pointer group flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 touch-manipulation active:scale-[0.99]"
-            >
+          {filteredTickets.map((ticket) => {
+            const priorityBorderColor =
+              ticket.priority === 'urgent'
+                ? 'border-l-rose-500'
+                : ticket.priority === 'high'
+                ? 'border-l-amber-500'
+                : ticket.priority === 'medium'
+                ? 'border-l-indigo-600'
+                : 'border-l-slate-300';
+
+            return (
+              <div
+                key={ticket.id}
+                onClick={() => {
+                  triggerHapticVibration(false);
+                  if (isInspectionOpen && onInspectTicket) {
+                    onInspectTicket(ticket.id, 'inspect');
+                  } else {
+                    onSelectTicket(ticket.id);
+                  }
+                }}
+                className={`bg-white border border-[#c8c4d5]/60 ${priorityBorderColor} ${
+                  isAndroid ? 'border-l-4 shadow-xs' : 'rounded-2xl'
+                } rounded-2xl p-4 hover:border-[#1f108e] transition-all duration-150 shadow-2xs hover:shadow-xs cursor-pointer group flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 touch-manipulation active:scale-[0.99]`}
+              >
               {/* Ticket Left Information */}
               <div className="flex-1 space-y-2 min-w-0">
                 <div className="flex flex-wrap items-center gap-1.5">
@@ -696,7 +712,8 @@ export const TicketsList: React.FC<TicketsListProps> = ({
                 )}
               </div>
             </div>
-          ))}
+          );
+        })}
         </div>
       )}
 

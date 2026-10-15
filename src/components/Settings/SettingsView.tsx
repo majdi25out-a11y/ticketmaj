@@ -2,6 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { colorThemes, applyTheme, getInitialTheme, ColorTheme, applyFontSize, getInitialFontSize } from '../../utils/theme';
 import { AppBrandingConfig, UserProfile, ProposedAvatar } from '../../types';
 import { compressImageFile } from '../../data/avatars';
+import {
+  getNotificationPermissionStatus,
+  requestDeviceNotificationPermission,
+  sendTestNotification,
+  NotificationPermissionState,
+} from '../../utils/deviceNotifications';
+import { AndroidNotificationCard } from '../Mobile/AndroidNotificationCard';
 
 interface SettingsViewProps {
   branding?: AppBrandingConfig;
@@ -37,6 +44,35 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [formError, setFormError] = useState<string | null>(null);
   const [selectedTheme, setSelectedTheme] = useState<ColorTheme>(getInitialTheme());
   const [fontSizePct, setFontSizePct] = useState<number>(getInitialFontSize());
+  const [deviceNotifState, setDeviceNotifState] = useState<NotificationPermissionState>(getNotificationPermissionStatus());
+  const [deviceNotifFeedback, setDeviceNotifFeedback] = useState<string | null>(null);
+
+  useEffect(() => {
+    setDeviceNotifState(getNotificationPermissionStatus());
+  }, []);
+
+  const handleRequestDeviceNotif = async () => {
+    const granted = await requestDeviceNotificationPermission();
+    setDeviceNotifState(getNotificationPermissionStatus());
+    if (granted) {
+      setDeviceNotifFeedback('Notifications Android / système activées avec succès !');
+    } else {
+      setDeviceNotifFeedback('Permission refusée ou non accordée.');
+    }
+    setTimeout(() => setDeviceNotifFeedback(null), 4000);
+  };
+
+  const handleTestDeviceNotif = async () => {
+    setDeviceNotifFeedback('Envoi du test...');
+    const ok = await sendTestNotification();
+    setDeviceNotifState(getNotificationPermissionStatus());
+    if (ok) {
+      setDeviceNotifFeedback('Notification de test envoyée avec son et vibration !');
+    } else {
+      setDeviceNotifFeedback('Veuillez d\'abord autoriser les notifications dans votre navigateur/Android.');
+    }
+    setTimeout(() => setDeviceNotifFeedback(null), 4000);
+  };
 
   // Branding states
   const [appName, setAppName] = useState(branding?.appName || 'TicketFlow');
@@ -1051,6 +1087,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
             {/* Mobile Application & APK Generation Section */}
             <div className="space-y-4 pt-4 border-t border-[#c8c4d5]/40">
+              {/* Android System Notifications Card */}
+              <AndroidNotificationCard currentUser={currentUser} />
+
               <div className="flex items-center justify-between border-b border-[#c8c4d5]/40 pb-2">
                 <h2 className="text-base font-bold text-[#0b1c30] flex items-center gap-2">
                   <span className="material-symbols-outlined text-emerald-600">android</span>
@@ -1124,6 +1163,67 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <span className="material-symbols-outlined text-[#1f108e]">notifications</span>
                 <span>Notifications & Webhooks</span>
               </h2>
+
+              {/* Android & Background Push Notifications Card */}
+              <div className="p-4 rounded-xl bg-gradient-to-r from-indigo-50/70 to-emerald-50/70 border border-[#c8c4d5]/60 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-xl text-emerald-600">notifications_active</span>
+                    <div>
+                      <p className="text-xs font-bold text-[#0b1c30]">Notifications Système Android & PWA (Avant-plan & Arrière-plan)</p>
+                      <p className="text-[11px] text-[#464553]">
+                        Alertes en temps réel dans le tiroir de notifications Android avec son et vibration, même application minimisée.
+                      </p>
+                    </div>
+                  </div>
+                  <span
+                    className={`text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full ${
+                      deviceNotifState === 'granted'
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : deviceNotifState === 'denied'
+                        ? 'bg-red-100 text-red-800'
+                        : 'bg-amber-100 text-amber-800'
+                    }`}
+                  >
+                    {deviceNotifState === 'granted' ? 'Activé' : deviceNotifState === 'denied' ? 'Bloqué' : 'En attente'}
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  {deviceNotifState !== 'granted' ? (
+                    <button
+                      type="button"
+                      onClick={handleRequestDeviceNotif}
+                      className="bg-[#1f108e] hover:bg-[#170b6e] text-white text-xs font-bold py-2 px-4 rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-base">notifications_active</span>
+                      <span>Autoriser les notifications sur cet appareil</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleTestDeviceNotif}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2 px-4 rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-base">ring_volume</span>
+                      <span>Envoyer une notification de test</span>
+                    </button>
+                  )}
+                </div>
+
+                {deviceNotifFeedback && (
+                  <p className="text-xs font-semibold text-emerald-800 bg-emerald-100/80 p-2 rounded-xl animate-in fade-in">
+                    {deviceNotifFeedback}
+                  </p>
+                )}
+
+                <div className="text-[10px] text-slate-500 bg-white/70 p-2.5 rounded-lg border border-slate-200/60 space-y-1">
+                  <p className="font-bold text-slate-700">Conseil Android pour l'arrière-plan :</p>
+                  <p>
+                    Pour que les notifications s'affichent même écran éteint ou application fermée, assurez-vous que les notifications de l'application sont autorisées dans les <em>Paramètres Android &gt; Applications &gt; TicketFlow &gt; Notifications</em>.
+                  </p>
+                </div>
+              </div>
 
               <div className="flex items-center justify-between">
                 <div>

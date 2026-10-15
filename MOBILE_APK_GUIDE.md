@@ -55,3 +55,13 @@ Le fichier APK compilé sera disponible dans :
 - **Icônes incluses** : 192x192, 512x512, 512x512 maskable, 180x180 Apple Touch
 - **Support Hors-Ligne** : Mise en cache automatique des polices et ressources critiques
 - **Navigation Optimisée** : Barre de navigation tactile mobile basse avec adaptation aux encoches (Safe Area Insets)
+
+---
+
+## 🔔 Notifications Android (Avant-plan & Arrière-plan) :
+TicketFlow prend en charge l'affichage des alertes dans le tiroir système d'Android :
+1. **Autorisation système** : Cliquez sur **« Activer les notifications »** dans le tiroir de notifications ou les Paramètres pour accorder l'autorisation au niveau d'Android.
+2. **Fonctionnement en avant-plan** : Lorsqu'un ticket vous est assigné ou qu'une modification survient, une notification s'affiche accompagnée d'un carillon audio et d'une vibration.
+3. **Fonctionnement en arrière-plan** : Le Service Worker (`sw-notifications.js`) et le récepteur d'arrière-plan affichent les alertes dans la barre d'état Android même lorsque l'application est fermée ou en arrière-plan. Cliquer sur la notification ouvre directement le ticket concerné.
+4. **Android 13+ (API 33+)** : La permission requise `android.permission.POST_NOTIFICATIONS` est intégrée dans le projet Android Studio (`AndroidManifest.xml`) et dans `MainActivity.java`.
+5. **Test immédiat** : Un bouton **« Tester la notification »** est disponible dans le menu Notifications pour vérifier la réception instantanée sur votre appareil.

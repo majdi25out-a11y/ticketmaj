@@ -6,12 +6,127 @@ import path from 'path';
 import fs from 'fs';
 import mysql from 'mysql2/promise';
 import dotenv from 'dotenv';
+import webpush from 'web-push';
 import { createServer as createViteServer } from 'vite';
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+
+// ------------------------------------------------------------
+// Web Push & VAPID Configuration for Android Foreground & Background Push
+// ------------------------------------------------------------
+const VAPID_KEY_FILE = path.join(process.cwd(), '.vapid-keys.json');
+const PUSH_SUBS_FILE = path.join(process.cwd(), '.push-subscriptions.json');
+
+let vapidKeys = {
+  publicKey: process.env.VAPID_PUBLIC_KEY || '',
+  privateKey: process.env.VAPID_PRIVATE_KEY || '',
+};
+
+if (!vapidKeys.publicKey || !vapidKeys.privateKey) {
+  try {
+    if (fs.existsSync(VAPID_KEY_FILE)) {
+      const data = JSON.parse(fs.readFileSync(VAPID_KEY_FILE, 'utf-8'));
+      if (data.publicKey && data.privateKey) {
+        vapidKeys = data;
+      }
+    }
+  } catch (_e) {}
+}
+
+if (!vapidKeys.publicKey || !vapidKeys.privateKey) {
+  vapidKeys = webpush.generateVAPIDKeys();
+  try {
+    fs.writeFileSync(VAPID_KEY_FILE, JSON.stringify(vapidKeys, null, 2), 'utf-8');
+  } catch (_e) {}
+}
+
+try {
+  webpush.setVapidDetails(
+    'mailto:support@ticketflow.io',
+    vapidKeys.publicKey,
+    vapidKeys.privateKey
+  );
+} catch (err) {
+  console.error('[WebPush init error]', err);
+}
+
+interface PushSubscriber {
+  endpoint: string;
+  keys: {
+    p256dh: string;
+    auth: string;
+  };
+  userEmail?: string;
+  userName?: string;
+}
+
+let pushSubscriptions: PushSubscriber[] = [];
+try {
+  if (fs.existsSync(PUSH_SUBS_FILE)) {
+    const raw = fs.readFileSync(PUSH_SUBS_FILE, 'utf-8');
+    pushSubscriptions = JSON.parse(raw);
+  }
+} catch (_e) {}
+
+function savePushSubscriptions() {
+  try {
+    fs.writeFileSync(PUSH_SUBS_FILE, JSON.stringify(pushSubscriptions, null, 2), 'utf-8');
+  } catch (_e) {}
+}
+
+async function broadcastWebPush(payload: {
+  title: string;
+  body: string;
+  ticketId?: string;
+  urgent?: boolean;
+  targetUserEmail?: string | null;
+  targetUserName?: string | null;
+}) {
+  if (pushSubscriptions.length === 0) return;
+
+  const notificationPayload = JSON.stringify({
+    title: payload.title || 'TicketFlow',
+    body: payload.body || 'Mise à jour reçue',
+    ticketId: payload.ticketId,
+    urgent: Boolean(payload.urgent),
+    url: payload.ticketId ? `/?ticket=${payload.ticketId}` : '/',
+    tag: `tf-${payload.ticketId || Date.now()}`,
+  });
+
+  const deadEndpoints = new Set<string>();
+
+  await Promise.allSettled(
+    pushSubscriptions.map(async (sub) => {
+      if (payload.targetUserEmail && sub.userEmail) {
+        if (sub.userEmail.toLowerCase() !== payload.targetUserEmail.toLowerCase()) {
+          return;
+        }
+      }
+
+      try {
+        await webpush.sendNotification(
+          {
+            endpoint: sub.endpoint,
+            keys: sub.keys,
+          },
+          notificationPayload
+        );
+      } catch (err: any) {
+        if (err.statusCode === 404 || err.statusCode === 410) {
+          deadEndpoints.add(sub.endpoint);
+        }
+      }
+    })
+  );
+
+  if (deadEndpoints.size > 0) {
+    pushSubscriptions = pushSubscriptions.filter((s) => !deadEndpoints.has(s.endpoint));
+    savePushSubscriptions();
+  }
+}
 
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
@@ -2522,6 +2637,18 @@ app.post('/api/notifications', async (req, res) => {
     }
   }
 
+  // Broadcast Web Push to Android and background devices immediately
+  broadcastWebPush({
+    title: notifObj.title,
+    body: notifObj.desc,
+    ticketId: notifObj.ticketId,
+    urgent: notifObj.urgent,
+    targetUserEmail: notifObj.targetUserEmail,
+    targetUserName: notifObj.targetUserName,
+  }).catch((err) => {
+    console.warn('[Broadcast WebPush error]', err);
+  });
+
   res.status(201).json(notifObj);
 });
 
@@ -2539,6 +2666,67 @@ app.put('/api/notifications/read', async (_req, res) => {
   }
 
   res.json({ message: 'Toutes les notifications marquées comme lues' });
+});
+
+// 13b. Web Push Endpoints for Android & Mobile Notifications
+app.get('/api/push/public-key', (_req, res) => {
+  res.json({ publicKey: vapidKeys.publicKey });
+});
+
+app.post('/api/push/subscribe', (req, res) => {
+  const { subscription, userEmail, userName } = req.body;
+  if (!subscription || !subscription.endpoint || !subscription.keys) {
+    return res.status(400).json({ error: 'Données de souscription push invalides' });
+  }
+
+  // Deduplicate
+  pushSubscriptions = pushSubscriptions.filter((s) => s.endpoint !== subscription.endpoint);
+  pushSubscriptions.push({
+    endpoint: subscription.endpoint,
+    keys: subscription.keys,
+    userEmail: userEmail || undefined,
+    userName: userName || undefined,
+  });
+  savePushSubscriptions();
+
+  res.json({
+    success: true,
+    message: 'Abonnement aux notifications Push Android enregistré',
+    count: pushSubscriptions.length,
+  });
+});
+
+app.post('/api/push/test', async (req, res) => {
+  const { subscription, userEmail } = req.body;
+  const targetSub =
+    subscription ||
+    (userEmail ? pushSubscriptions.find((s) => s.userEmail === userEmail) : null) ||
+    pushSubscriptions[pushSubscriptions.length - 1];
+
+  if (!targetSub || !targetSub.endpoint) {
+    return res.status(400).json({
+      error: 'Aucun abonnement Push Android actif trouvé. Activez d\'abord les notifications.',
+    });
+  }
+
+  try {
+    await webpush.sendNotification(
+      {
+        endpoint: targetSub.endpoint,
+        keys: targetSub.keys,
+      },
+      JSON.stringify({
+        title: '🔔 TicketFlow - Notification Android',
+        body: 'Parfait ! Les notifications système fonctionnent en avant-plan et en arrière-plan sur Android.',
+        urgent: true,
+        tag: `tf-test-${Date.now()}`,
+      })
+    );
+    res.json({ success: true, message: 'Notification test envoyée sur l\'appareil Android !' });
+  } catch (err: any) {
+    console.error('[Test push error]', err);
+    res.status(500).json({ error: err.message || 'Échec de l\'envoi push' });
+  }
 });
 
 // 14. GET & POST App Branding Configuration
