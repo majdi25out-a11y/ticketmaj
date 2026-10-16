@@ -1,0 +1,29 @@
+# Apache / Plesk Configuration for TicketFlow SPA
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+  RewriteRule ^index\.html$ - [L]
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule . /index.html [L]
+</IfModule>
+
+# Correct MIME Types
+<IfModule mod_mime.c>
+  AddType image/svg+xml .svg .svgz
+  AddEncoding gzip .svgz
+  AddType image/png .png
+  AddType application/manifest+json .webmanifest
+  AddType text/javascript .js .mjs
+  AddType text/css .css
+</IfModule>
+
+# Caching and Headers
+<IfModule mod_headers.c>
+  <FilesMatch "\.(html|htm)$">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+  </FilesMatch>
+  <FilesMatch "\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2)$">
+    Header set Cache-Control "max-age=31536000, public"
+  </FilesMatch>
+</IfModule>
