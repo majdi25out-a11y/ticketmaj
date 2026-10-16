@@ -2819,6 +2819,11 @@ app.post('/api/branding', async (req, res) => {
 // VITE OR STATIC SERVING
 // ------------------------------------------------------------
 async function startServer() {
+  const publicPath = path.join(process.cwd(), 'public');
+  if (fs.existsSync(publicPath)) {
+    app.use(express.static(publicPath, { maxAge: '1h' }));
+  }
+
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: {
@@ -2835,6 +2840,14 @@ async function startServer() {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
+
+  // Fallback error handler to prevent crashing or empty 500s
+  app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    console.error('[Server Error]', err);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Internal Server Error', message: err?.message || 'Unknown error' });
+    }
+  });
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`[Server] TicketFlow App running on http://0.0.0.0:${PORT}`);
