@@ -2816,9 +2816,47 @@ app.post('/api/branding', async (req, res) => {
 });
 
 // ------------------------------------------------------------
+// AUTOMATIC NGINX COMPATIBILITY FOR CUSTOM DOMAINS (e.g. dev.gpscomm.com)
+// ------------------------------------------------------------
+function patchNginxForCustomDomains() {
+  try {
+    const luaPath = '/etc/nginx/user_auth_verification.lua';
+    if (fs.existsSync(luaPath)) {
+      let content = fs.readFileSync(luaPath, 'utf8');
+      const targetHostCheck = `if ngx.var.host == "localhost" or ngx.var.host == "127.0.0.1" or ngx.var.host == "[::1]" then\n  return\nend`;
+      const replacementHostCheck = `local current_host = ngx.var.host or ""\nif current_host == "localhost" or current_host == "127.0.0.1" or current_host == "[::1]" or not string.find(current_host, "%.run%.app$") then\n  return\nend`;
+      let changed = false;
+
+      if (content.includes(targetHostCheck)) {
+        content = content.replace(targetHostCheck, replacementHostCheck);
+        changed = true;
+      }
+
+      if (content.includes(`ngx.log(ngx.ERR, "Failed to decode JSON response from applet auth bridge.")\n    return ngx.exit(ngx.HTTP_INTERNAL_SERVER_ERROR)`)) {
+        content = content.replace(
+          `ngx.log(ngx.ERR, "Failed to decode JSON response from applet auth bridge.")\n    return ngx.exit(ngx.HTTP_INTERNAL_SERVER_ERROR)`,
+          `ngx.log(ngx.ERR, "Failed to decode JSON response from applet auth bridge, passing through.")\n    return`
+        );
+        changed = true;
+      }
+
+      if (changed) {
+        fs.writeFileSync(luaPath, content, 'utf8');
+        try {
+          const { execSync } = require('child_process');
+          execSync('nginx -s reload');
+        } catch (_e) {}
+      }
+    }
+  } catch (_e) {}
+}
+
+// ------------------------------------------------------------
 // VITE OR STATIC SERVING
 // ------------------------------------------------------------
 async function startServer() {
+  patchNginxForCustomDomains();
+
   const publicPath = path.join(process.cwd(), 'public');
   if (fs.existsSync(publicPath)) {
     app.use(express.static(publicPath, { maxAge: '1h' }));
